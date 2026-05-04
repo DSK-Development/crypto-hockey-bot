@@ -1,0 +1,20 @@
+import { httpClient, withAuth } from './httpClient';
+import { TelegramAuthRequest, AuthResponse, PlayerProfile, WalletBalance } from '../types/api';
+
+export async function authTelegram(initData: string, referralCode?: string): Promise<AuthResponse> {
+  const body: TelegramAuthRequest = { initData };
+  if (referralCode) body.referralCode = referralCode;
+
+  const { data } = await httpClient.post<AuthResponse>('/auth/telegram', body);
+  return data;
+}
+
+export async function getProfile(accessToken: string): Promise<PlayerProfile> {
+  const { data } = await httpClient.get<PlayerProfile>('/users/me', withAuth(accessToken));
+  return data;
+}
+
+export async function getBalance(accessToken: string): Promise<WalletBalance> {
+  const { data } = await httpClient.get<WalletBalance>('/wallet/balance', withAuth(accessToken));
+  return data;
+}
