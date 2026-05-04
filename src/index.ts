@@ -1,14 +1,13 @@
 import { Telegraf } from 'telegraf';
 import { config } from './config/env';
+import { startCommand } from './commands/start';
 
 const bot = new Telegraf(config.bot.token);
 
-bot.start((ctx) => {
-  ctx.reply('Welcome to Crypto Hockey! 🏒');
-});
+bot.start(startCommand);
 
 bot.help((ctx) => {
-  ctx.reply('Use /start to begin.');
+  ctx.reply('Use /start to open the game.');
 });
 
 bot.launch().then(() => {

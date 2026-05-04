@@ -13,6 +13,7 @@ function requireEnv(key: string): string {
 export const config = {
   bot: {
     token: requireEnv('BOT_TOKEN'),
+    webAppUrl: requireEnv('WEBAPP_URL'),
   },
   accountManagement: {
     baseUrl: requireEnv('ACCOUNT_MANAGEMENT_URL'),
