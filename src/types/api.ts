@@ -35,6 +35,47 @@ export interface WalletBalance {
   totalStars: number;
 }
 
+export interface LobbyPlayer {
+  playerId: string;
+  username: string;
+  photoUrl?: string;
+  status: 'WAITING_PAYMENT' | 'READY' | 'LEFT';
+  joinedAt: string;
+}
+
+export type LobbyStatus = 'WAITING' | 'READY' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
+
+export interface Lobby {
+  id: string;
+  status: LobbyStatus;
+  stakeAmount: number;
+  minPlayers: number;
+  maxPlayers: number;
+  currentPlayerCount: number;
+  prizePool: number;
+  players: LobbyPlayer[];
+  matchId?: string;
+  createdBy?: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface JoinLobbyResponse {
+  lobby: Lobby;
+  invoiceLink: string;
+  invoiceId: string;
+}
+
+export type MatchmakingState = 'SEARCHING' | 'MATCHED' | 'TIMED_OUT' | 'NOT_IN_QUEUE';
+
+export interface MatchmakingQueueStatus {
+  playerId: string;
+  state: MatchmakingState;
+  stakeAmount: number;
+  waitingSeconds: number;
+  lobby?: Lobby;
+}
+
 export interface Transaction {
   id: string;
   playerId: string;

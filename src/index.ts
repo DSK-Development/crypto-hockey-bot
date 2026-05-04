@@ -5,6 +5,7 @@ import { startCommand } from './commands/start';
 import { playCommand } from './commands/play';
 import { stakeHandler, stakeBackHandler } from './handlers/stakeHandler';
 import { successfulPaymentHandler } from './handlers/paymentHandler';
+import { matchFindHandler } from './handlers/matchmakingHandler';
 
 const bot = new Telegraf(config.bot.token);
 
@@ -14,6 +15,10 @@ bot.help((ctx) => ctx.reply('Use /start to open the game or /play to pick a stak
 
 bot.on('successful_payment', (ctx) =>
   successfulPaymentHandler(ctx as Parameters<typeof successfulPaymentHandler>[0]),
+);
+
+bot.action(/^match:find:\d+$/, (ctx) =>
+  matchFindHandler(ctx as Parameters<typeof matchFindHandler>[0]),
 );
 
 bot.action('stake:back', (ctx) =>

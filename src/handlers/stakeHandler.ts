@@ -19,10 +19,11 @@ export async function stakeHandler(ctx: CallbackQueryContext): Promise<void> {
   const url = new URL(buildWebAppUrl(config.bot.webAppUrl, null));
   url.searchParams.set('stake', String(amount));
 
-  await ctx.editMessageText(`⭐ Stake: ${amount} Stars — tap Play to enter the match.`, {
+  await ctx.editMessageText(`⭐ Stake: ${amount} Stars — choose how to play:`, {
     reply_markup: {
       inline_keyboard: [
-        [{ text: '🏒 Play', web_app: { url: url.toString() } }],
+        [{ text: '🔍 Find Match', callback_data: `match:find:${amount}` }],
+        [{ text: '🏒 Play (WebApp)', web_app: { url: url.toString() } }],
         [{ text: '← Change stake', callback_data: 'stake:back' }],
       ],
     },
