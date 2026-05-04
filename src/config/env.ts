@@ -17,6 +17,7 @@ export const config = {
   },
   accountManagement: {
     baseUrl: requireEnv('ACCOUNT_MANAGEMENT_URL'),
+    serviceToken: requireEnv('SERVICE_TOKEN'),
   },
   nodeEnv: process.env.NODE_ENV ?? 'development',
 } as const;

@@ -4,12 +4,17 @@ import { config } from './config/env';
 import { startCommand } from './commands/start';
 import { playCommand } from './commands/play';
 import { stakeHandler, stakeBackHandler } from './handlers/stakeHandler';
+import { successfulPaymentHandler } from './handlers/paymentHandler';
 
 const bot = new Telegraf(config.bot.token);
 
 bot.start(startCommand);
 bot.command('play', playCommand);
 bot.help((ctx) => ctx.reply('Use /start to open the game or /play to pick a stake.'));
+
+bot.on('successful_payment', (ctx) =>
+  successfulPaymentHandler(ctx as Parameters<typeof successfulPaymentHandler>[0]),
+);
 
 bot.action('stake:back', (ctx) =>
   stakeBackHandler(ctx as Parameters<typeof stakeBackHandler>[0]),

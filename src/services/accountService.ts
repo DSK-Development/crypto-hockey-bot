@@ -1,5 +1,12 @@
 import { httpClient, withAuth } from './httpClient';
-import { TelegramAuthRequest, AuthResponse, PlayerProfile, WalletBalance } from '../types/api';
+import {
+  TelegramAuthRequest,
+  AuthResponse,
+  PlayerProfile,
+  WalletBalance,
+  HoldStakeRequest,
+  Transaction,
+} from '../types/api';
 
 export async function authTelegram(initData: string, referralCode?: string): Promise<AuthResponse> {
   const body: TelegramAuthRequest = { initData };
@@ -16,5 +23,10 @@ export async function getProfile(accessToken: string): Promise<PlayerProfile> {
 
 export async function getBalance(accessToken: string): Promise<WalletBalance> {
   const { data } = await httpClient.get<WalletBalance>('/wallet/balance', withAuth(accessToken));
+  return data;
+}
+
+export async function holdStake(body: HoldStakeRequest, serviceToken: string): Promise<Transaction> {
+  const { data } = await httpClient.post<Transaction>('/wallet/hold', body, withAuth(serviceToken));
   return data;
 }

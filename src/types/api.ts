@@ -35,6 +35,27 @@ export interface WalletBalance {
   totalStars: number;
 }
 
+export interface Transaction {
+  id: string;
+  playerId: string;
+  type: string;
+  amount: number;
+  status: string;
+}
+
+export interface HoldStakeRequest {
+  playerId: string;
+  matchId: string;
+  amount: number;
+  telegramPaymentChargeId: string;
+}
+
+export interface InvoicePayload {
+  lobbyId: string;
+  playerId: string;
+  stakeAmount: number;
+}
+
 export interface ApiError {
   code: string;
   message: string;
