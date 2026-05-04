@@ -1,0 +1,1310 @@
+openapi: 3.0.3
+info:
+  title: Telegram Bot & Game Service
+  description: |
+    REST API for the Telegram Bot, lobby management, matchmaking,
+    payment processing (Telegram Stars), real-time chat, and match orchestration.
+    Built on Node.js. Exposes both public-facing bot webhook endpoints
+    and internal service-to-service APIs consumed by the game server.
+  version: 1.0.0
+  contact:
+    name: DSKdev Team
+
+servers:
+  - url: https://api.dskdev.io/bot/v1
+    description: Production
+  - url: https://staging-api.dskdev.io/bot/v1
+    description: Staging
+  - url: http://localhost:3000/api/v1
+    description: Local development
+
+tags:
+  - name: Webhook
+    description: Telegram Bot API webhook receiver
+  - name: Lobbies
+    description: Lobby lifecycle (create, join, leave, list)
+  - name: Matchmaking
+    description: Automatic matchmaking queue
+  - name: Chat
+    description: Pre-match lobby chat
+  - name: Payments
+    description: Telegram Stars payment flows
+  - name: Matches
+    description: Match orchestration and results
+  - name: Notifications
+    description: Push notifications and Telegram messages to players
+  - name: Bot-Internal
+    description: Internal endpoints for game server ↔ bot service communication
+
+# ─────────────────────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────────────────────
+paths:
+
+  # ── WEBHOOK ───────────────────────────────────────────────
+  /webhook/telegram:
+    post:
+      tags: [Webhook]
+      summary: Receive updates from Telegram Bot API
+      description: |
+        Telegram delivers all bot updates (messages, callback queries,
+        pre-checkout queries, successful payments, inline queries) here.
+        The endpoint must respond with HTTP 200 within 10 seconds.
+      operationId: telegramWebhook
+      security:
+        - WebhookSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramUpdate'
+      responses:
+        '200':
+          description: Update acknowledged
+
+  # ── LOBBIES ───────────────────────────────────────────────
+  /lobbies:
+    get:
+      tags: [Lobbies]
+      summary: List open lobbies available to join
+      operationId: listLobbies
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: stakeAmount
+          in: query
+          description: Filter by exact stake amount in Stars
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
+      responses:
+        '200':
+          description: List of open lobbies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LobbyPage'
+
+    post:
+      tags: [Lobbies]
+      summary: Create a new lobby
+      operationId: createLobby
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLobbyRequest'
+      responses:
+        '201':
+          description: Lobby created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lobby'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Player already in a lobby or match
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /lobbies/{lobbyId}:
+    get:
+      tags: [Lobbies]
+      summary: Get lobby details
+      operationId: getLobby
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LobbyId'
+      responses:
+        '200':
+          description: Lobby details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lobby'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /lobbies/{lobbyId}/join:
+    post:
+      tags: [Lobbies]
+      summary: Join an existing lobby
+      description: |
+        Puts the player in WAITING status. A payment invoice is automatically
+        created and sent to the player. The player's status changes to READY
+        after successful payment (see /payments/confirm).
+      operationId: joinLobby
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LobbyId'
+      responses:
+        '200':
+          description: Joined lobby, payment invoice sent to Telegram
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinLobbyResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Lobby is full, already started, or player already in another lobby
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /lobbies/{lobbyId}/leave:
+    post:
+      tags: [Lobbies]
+      summary: Leave a lobby before match starts
+      description: Releases any held stake and removes the player from the lobby.
+      operationId: leaveLobby
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LobbyId'
+      responses:
+        '200':
+          description: Left lobby, stake refunded if applicable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveLobbyResponse'
+        '409':
+          description: Match already started, cannot leave
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /lobbies/{lobbyId}/ready:
+    post:
+      tags: [Lobbies]
+      summary: Mark player as ready (called after payment confirmation)
+      description: |
+        Internal-facing. Normally triggered automatically via the payment webhook.
+        Exposed here for manual testing.
+      operationId: setPlayerReady
+      security:
+        - ServiceAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LobbyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetReadyRequest'
+      responses:
+        '200':
+          description: Player marked ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lobby'
+
+  /lobbies/{lobbyId}/start:
+    post:
+      tags: [Lobbies]
+      summary: Force-start a lobby (admin only)
+      operationId: forceStartLobby
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LobbyId'
+      responses:
+        '200':
+          description: Match initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── CHAT ──────────────────────────────────────────────────
+  /lobbies/{lobbyId}/chat:
+    get:
+      tags: [Chat]
+      summary: Get pre-match chat messages
+      operationId: getLobbyChat
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LobbyId'
+        - name: before
+          in: query
+          description: Cursor — return messages before this message ID
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        '200':
+          description: Chat messages (newest first)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatMessage'
+                  hasMore:
+                    type: boolean
+
+    post:
+      tags: [Chat]
+      summary: Send a chat message in the lobby
+      operationId: sendChatMessage
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LobbyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendChatMessageRequest'
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Chat is closed (match already started)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ── MATCHMAKING ───────────────────────────────────────────
+  /matchmaking/queue:
+    post:
+      tags: [Matchmaking]
+      summary: Enter the matchmaking queue (Play Now)
+      description: |
+        Adds the player to the matchmaking pool for the given stake amount.
+        If a lobby with a waiting player exists, they are immediately paired.
+        Otherwise, a new lobby is created. Responds with the lobby the player was
+        placed in. Maximum queue wait: 10 seconds before timeout.
+      operationId: enterQueue
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnterQueueRequest'
+      responses:
+        '200':
+          description: Placed into a lobby
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinLobbyResponse'
+        '202':
+          description: Searching — player added to queue, waiting for an opponent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchmakingQueueStatus'
+        '409':
+          description: Player already in queue or active lobby
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [Matchmaking]
+      summary: Leave the matchmaking queue
+      operationId: leaveQueue
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Removed from queue
+
+  /matchmaking/status:
+    get:
+      tags: [Matchmaking]
+      summary: Poll current matchmaking status
+      operationId: getQueueStatus
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchmakingQueueStatus'
+
+  # ── PAYMENTS ──────────────────────────────────────────────
+  /payments/invoice:
+    post:
+      tags: [Payments]
+      summary: Create a Telegram Stars payment invoice for a lobby stake
+      description: |
+        Generates a Stars invoice link via Telegram Bot API and returns it.
+        The invoice is sent to the player's Telegram chat. After the player
+        pays, Telegram delivers a `pre_checkout_query` and then
+        `successful_payment` update to the webhook.
+      operationId: createInvoice
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvoiceRequest'
+      responses:
+        '201':
+          description: Invoice created and sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /payments/pre-checkout:
+    post:
+      tags: [Payments]
+      summary: Handle Telegram pre-checkout validation (internal webhook relay)
+      description: |
+        Called internally by the webhook handler when a `pre_checkout_query` arrives.
+        Validates that the lobby is still open, the stake amount matches, and the
+        player is not banned. Must respond within 10 seconds.
+      operationId: preCheckout
+      security:
+        - ServiceAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreCheckoutRequest'
+      responses:
+        '200':
+          description: Pre-checkout decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreCheckoutResponse'
+
+  /payments/confirm:
+    post:
+      tags: [Payments]
+      summary: Confirm successful Stars payment (internal webhook relay)
+      description: |
+        Called internally by the webhook handler on `successful_payment`.
+        Triggers: hold stake in account service → set player to READY in lobby.
+      operationId: confirmPayment
+      security:
+        - ServiceAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmPaymentRequest'
+      responses:
+        '200':
+          description: Payment confirmed, player marked READY
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lobby'
+
+  /payments/refund:
+    post:
+      tags: [Payments]
+      summary: Refund a Stars payment (admin / match cancellation)
+      operationId: refundPayment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundRequest'
+      responses:
+        '200':
+          description: Refund initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundResult'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Already refunded or non-refundable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ── MATCHES ───────────────────────────────────────────────
+  /matches/{matchId}:
+    get:
+      tags: [Matches]
+      summary: Get match details
+      operationId: getMatch
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchId'
+      responses:
+        '200':
+          description: Match details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /matches/{matchId}/result:
+    post:
+      tags: [Matches]
+      summary: Submit match result from game server
+      description: |
+        Called by the game server after the game ends. Triggers:
+        1. Prize transfer via account service.
+        2. Stats update via account service /internal/match-result.
+        3. Telegram notifications to all participants.
+        4. Analytics event emission.
+      operationId: submitMatchResult
+      security:
+        - ServiceAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitMatchResultRequest'
+      responses:
+        '200':
+          description: Result processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchResultResponse'
+        '409':
+          description: Result already submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /matches/{matchId}/cancel:
+    post:
+      tags: [Matches]
+      summary: Cancel a match and refund all stakes
+      description: Called when the game server cannot complete a match (e.g. player disconnect before game start).
+      operationId: cancelMatch
+      security:
+        - ServiceAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MatchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelMatchRequest'
+      responses:
+        '200':
+          description: Match cancelled, refunds issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+
+  # ── NOTIFICATIONS ─────────────────────────────────────────
+  /notifications/send:
+    post:
+      tags: [Notifications]
+      summary: Send a Telegram message to a player (internal)
+      operationId: sendNotification
+      security:
+        - ServiceAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendNotificationRequest'
+      responses:
+        '200':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationResult'
+
+  /notifications/broadcast:
+    post:
+      tags: [Notifications]
+      summary: Broadcast a message to all players (admin)
+      operationId: broadcastNotification
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BroadcastRequest'
+      responses:
+        '202':
+          description: Broadcast enqueued
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── BOT INTERNAL ──────────────────────────────────────────
+  /internal/health:
+    get:
+      tags: [Bot-Internal]
+      summary: Health check
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "UP"
+                  uptime:
+                    type: integer
+                    description: Process uptime in seconds
+
+  /internal/metrics:
+    get:
+      tags: [Bot-Internal]
+      summary: Prometheus-compatible metrics endpoint
+      operationId: getMetrics
+      security:
+        - ServiceAuth: []
+      responses:
+        '200':
+          description: Metrics in text/plain format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+# ─────────────────────────────────────────────────────────────
+# COMPONENTS
+# ─────────────────────────────────────────────────────────────
+components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT issued by account service /auth/telegram
+    ServiceAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Long-lived service-to-service JWT
+    WebhookSecret:
+      type: apiKey
+      in: header
+      name: X-Telegram-Bot-Api-Secret-Token
+      description: Telegram webhook secret token set via setWebhook
+
+  parameters:
+    LobbyId:
+      name: lobbyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MatchId:
+      name: matchId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+
+    # ── TELEGRAM UPDATE (simplified) ────────────────────────
+    TelegramUpdate:
+      type: object
+      description: Telegram Bot API Update object (partial schema for documentation)
+      properties:
+        update_id:
+          type: integer
+        message:
+          $ref: '#/components/schemas/TelegramMessage'
+        callback_query:
+          $ref: '#/components/schemas/TelegramCallbackQuery'
+        pre_checkout_query:
+          $ref: '#/components/schemas/TelegramPreCheckoutQuery'
+        successful_payment:
+          $ref: '#/components/schemas/TelegramSuccessfulPayment'
+
+    TelegramMessage:
+      type: object
+      properties:
+        message_id:
+          type: integer
+        from:
+          $ref: '#/components/schemas/TelegramUser'
+        chat:
+          $ref: '#/components/schemas/TelegramChat'
+        text:
+          type: string
+        web_app_data:
+          type: object
+          properties:
+            data:
+              type: string
+            button_text:
+              type: string
+
+    TelegramUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        is_bot:
+          type: boolean
+        first_name:
+          type: string
+        last_name:
+          type: string
+        username:
+          type: string
+        language_code:
+          type: string
+
+    TelegramChat:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum: [private, group, supergroup, channel]
+
+    TelegramCallbackQuery:
+      type: object
+      properties:
+        id:
+          type: string
+        from:
+          $ref: '#/components/schemas/TelegramUser'
+        data:
+          type: string
+          description: Callback data string (e.g., "join_lobby:uuid", "leave_lobby:uuid")
+
+    TelegramPreCheckoutQuery:
+      type: object
+      properties:
+        id:
+          type: string
+        from:
+          $ref: '#/components/schemas/TelegramUser'
+        currency:
+          type: string
+          example: "XTR"
+        total_amount:
+          type: integer
+          description: Amount in Stars (XTR, smallest unit = 1 star)
+        invoice_payload:
+          type: string
+          description: |
+            JSON-encoded payload: `{"lobbyId":"...","playerId":"...","stakeAmount":50}`
+
+    TelegramSuccessfulPayment:
+      type: object
+      properties:
+        currency:
+          type: string
+          example: "XTR"
+        total_amount:
+          type: integer
+        invoice_payload:
+          type: string
+        telegram_payment_charge_id:
+          type: string
+          description: Unique Telegram payment identifier
+        provider_payment_charge_id:
+          type: string
+
+    # ── LOBBY ───────────────────────────────────────────────
+    Lobby:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/LobbyStatus'
+        stakeAmount:
+          type: integer
+          description: Stars each player must stake to participate
+          example: 50
+        minPlayers:
+          type: integer
+          example: 2
+        maxPlayers:
+          type: integer
+          example: 2
+        currentPlayerCount:
+          type: integer
+          example: 1
+        prizePool:
+          type: integer
+          description: Current accumulated prize pool in Stars
+          example: 50
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/LobbyPlayer'
+        matchId:
+          type: string
+          format: uuid
+          description: Set when the match has been created
+        createdBy:
+          type: string
+          format: uuid
+          description: Player ID who created the lobby (null for matchmaking lobbies)
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: Lobby auto-closes at this time if not filled
+
+    LobbyStatus:
+      type: string
+      enum:
+        - WAITING
+        - READY
+        - IN_PROGRESS
+        - COMPLETED
+        - CANCELLED
+        - EXPIRED
+
+    LobbyPlayer:
+      type: object
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        username:
+          type: string
+        photoUrl:
+          type: string
+          format: uri
+        status:
+          $ref: '#/components/schemas/LobbyPlayerStatus'
+        joinedAt:
+          type: string
+          format: date-time
+
+    LobbyPlayerStatus:
+      type: string
+      enum:
+        - WAITING_PAYMENT
+        - READY
+        - LEFT
+
+    LobbyPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Lobby'
+        page:
+          type: integer
+        totalPages:
+          type: integer
+        totalElements:
+          type: integer
+
+    CreateLobbyRequest:
+      type: object
+      required: [stakeAmount]
+      properties:
+        stakeAmount:
+          type: integer
+          minimum: 1
+          description: Stars entry fee per player
+          example: 50
+        maxPlayers:
+          type: integer
+          minimum: 2
+          maximum: 8
+          default: 2
+          description: Maximum number of players (game type determines valid range)
+
+    JoinLobbyResponse:
+      type: object
+      properties:
+        lobby:
+          $ref: '#/components/schemas/Lobby'
+        invoiceLink:
+          type: string
+          format: uri
+          description: Telegram Stars invoice link to open payment dialog
+        invoiceId:
+          type: string
+          format: uuid
+
+    LeaveLobbyResponse:
+      type: object
+      properties:
+        lobby:
+          $ref: '#/components/schemas/Lobby'
+        refunded:
+          type: boolean
+        refundedAmount:
+          type: integer
+
+    SetReadyRequest:
+      type: object
+      required: [playerId, telegramPaymentChargeId]
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        telegramPaymentChargeId:
+          type: string
+
+    # ── MATCHMAKING ─────────────────────────────────────────
+    EnterQueueRequest:
+      type: object
+      required: [stakeAmount]
+      properties:
+        stakeAmount:
+          type: integer
+          minimum: 1
+          example: 50
+
+    MatchmakingQueueStatus:
+      type: object
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum: [SEARCHING, MATCHED, TIMED_OUT, NOT_IN_QUEUE]
+        stakeAmount:
+          type: integer
+        waitingSeconds:
+          type: integer
+        lobby:
+          $ref: '#/components/schemas/Lobby'
+          description: Populated when state = MATCHED
+
+    # ── CHAT ────────────────────────────────────────────────
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        lobbyId:
+          type: string
+          format: uuid
+        playerId:
+          type: string
+          format: uuid
+        username:
+          type: string
+        text:
+          type: string
+          maxLength: 100
+        sentAt:
+          type: string
+          format: date-time
+
+    SendChatMessageRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    # ── PAYMENTS ────────────────────────────────────────────
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        lobbyId:
+          type: string
+          format: uuid
+        playerId:
+          type: string
+          format: uuid
+        stakeAmount:
+          type: integer
+        currency:
+          type: string
+          example: "XTR"
+        status:
+          $ref: '#/components/schemas/InvoiceStatus'
+        invoiceLink:
+          type: string
+          format: uri
+          description: t.me invoice link to open in Telegram
+        telegramPaymentChargeId:
+          type: string
+          description: Set after successful payment
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+
+    InvoiceStatus:
+      type: string
+      enum: [PENDING, PAID, EXPIRED, REFUNDED, FAILED]
+
+    CreateInvoiceRequest:
+      type: object
+      required: [lobbyId]
+      properties:
+        lobbyId:
+          type: string
+          format: uuid
+
+    PreCheckoutRequest:
+      type: object
+      required: [preCheckoutQueryId, fromTelegramId, invoicePayload, totalAmount]
+      properties:
+        preCheckoutQueryId:
+          type: string
+        fromTelegramId:
+          type: integer
+          format: int64
+        totalAmount:
+          type: integer
+        invoicePayload:
+          type: string
+
+    PreCheckoutResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        errorMessage:
+          type: string
+          description: Required when ok = false. Shown to the player in Telegram.
+
+    ConfirmPaymentRequest:
+      type: object
+      required: [telegramPaymentChargeId, fromTelegramId, invoicePayload, totalAmount]
+      properties:
+        telegramPaymentChargeId:
+          type: string
+        providerPaymentChargeId:
+          type: string
+        fromTelegramId:
+          type: integer
+          format: int64
+        totalAmount:
+          type: integer
+        invoicePayload:
+          type: string
+
+    RefundRequest:
+      type: object
+      required: [invoiceId, reason]
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          enum: [MATCH_CANCELLED, ADMIN_DECISION, TECHNICAL_ERROR]
+
+    RefundResult:
+      type: object
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [REFUND_INITIATED, ALREADY_REFUNDED]
+        refundedAmount:
+          type: integer
+
+    # ── MATCH ───────────────────────────────────────────────
+    Match:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        lobbyId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/MatchStatus'
+        stakePerPlayer:
+          type: integer
+        prizePool:
+          type: integer
+          description: Total Stars staked by all players
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchParticipant'
+        winnerId:
+          type: string
+          format: uuid
+          description: Populated after match completion (null for draw)
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        durationSeconds:
+          type: integer
+        gameServerUrl:
+          type: string
+          format: uri
+          description: WebSocket URL the Mini App should connect to
+
+    MatchStatus:
+      type: string
+      enum:
+        - PENDING
+        - IN_PROGRESS
+        - COMPLETED
+        - DRAW
+        - CANCELLED
+
+    MatchParticipant:
+      type: object
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        username:
+          type: string
+        placement:
+          type: integer
+          description: Final placement (1 = winner). Null during the match.
+        score:
+          type: integer
+        earned:
+          type: integer
+          description: Stars won (0 for losers)
+        isConnected:
+          type: boolean
+          description: Real-time connection status during the match
+
+    SubmitMatchResultRequest:
+      type: object
+      required: [participants, completedAt]
+      properties:
+        completedAt:
+          type: string
+          format: date-time
+        durationSeconds:
+          type: integer
+        isDraw:
+          type: boolean
+          default: false
+        participants:
+          type: array
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/SubmitParticipantResult'
+
+    SubmitParticipantResult:
+      type: object
+      required: [playerId, placement, score]
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        placement:
+          type: integer
+          minimum: 1
+        score:
+          type: integer
+
+    MatchResultResponse:
+      type: object
+      properties:
+        match:
+          $ref: '#/components/schemas/Match'
+        prizeTransfer:
+          type: object
+          properties:
+            winnerId:
+              type: string
+              format: uuid
+            prizeAmount:
+              type: integer
+            commissionAmount:
+              type: integer
+        notificationsSent:
+          type: integer
+
+    CancelMatchRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [PLAYER_DISCONNECTED, SERVER_ERROR, ADMIN_DECISION, TIMEOUT]
+        details:
+          type: string
+          maxLength: 500
+
+    # ── NOTIFICATIONS ────────────────────────────────────────
+    SendNotificationRequest:
+      type: object
+      required: [telegramId, message]
+      properties:
+        telegramId:
+          type: integer
+          format: int64
+        message:
+          type: string
+          maxLength: 4096
+        parseMode:
+          type: string
+          enum: [HTML, Markdown, MarkdownV2]
+          default: HTML
+        replyMarkup:
+          type: object
+          description: Telegram InlineKeyboardMarkup object
+
+    NotificationResult:
+      type: object
+      properties:
+        telegramId:
+          type: integer
+          format: int64
+        messageId:
+          type: integer
+        sentAt:
+          type: string
+          format: date-time
+
+    BroadcastRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          maxLength: 4096
+        parseMode:
+          type: string
+          enum: [HTML, Markdown, MarkdownV2]
+          default: HTML
+        targetGroup:
+          type: string
+          enum: [ALL, ACTIVE_LAST_7_DAYS, ACTIVE_LAST_30_DAYS]
+          default: ALL
+
+    # ── COMMON ──────────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "LOBBY_FULL"
+        message:
+          type: string
+          example: "The lobby is already at maximum capacity"
+        timestamp:
+          type: string
+          format: date-time
+        traceId:
+          type: string
