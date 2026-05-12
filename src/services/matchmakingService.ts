@@ -1,13 +1,9 @@
 import { httpClient, withAuth, AccountApiError } from './httpClient';
 import { JoinLobbyResponse, MatchmakingQueueStatus } from '../types/api';
 
-export interface EnterQueueResult {
-  matched: true;
-  response: JoinLobbyResponse;
-} | {
-  matched: false;
-  status: MatchmakingQueueStatus;
-}
+export type EnterQueueResult =
+  | { matched: true; response: JoinLobbyResponse }
+  | { matched: false; status: MatchmakingQueueStatus }
 
 export async function enterQueue(
   stakeAmount: number,

@@ -6,9 +6,9 @@ export function parseReferralCode(startPayload: string | undefined): string | nu
   return code.length > 0 ? code : null;
 }
 
-export function buildWebAppUrl(baseUrl: string, referralCode: string | null): string {
-  if (!referralCode) return baseUrl;
+export function buildWebAppUrl(baseUrl: string, referralCode: string | null, matchId?: string): string {
   const url = new URL(baseUrl);
-  url.searchParams.set('ref', referralCode);
+  if (referralCode) url.searchParams.set('ref', referralCode);
+  if (matchId) url.hash = `matchId=${encodeURIComponent(matchId)}`;
   return url.toString();
 }
