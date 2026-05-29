@@ -1,9 +1,12 @@
 import { Context } from 'telegraf';
-import { CallbackQuery } from 'telegraf/types';
+import { CallbackQuery, InlineKeyboardMarkup } from 'telegraf/types';
 import { getSession } from '../session/sessionStore';
 import { enterQueue, pollUntilMatched, leaveQueue } from '../services/matchmakingService';
 import { JoinLobbyResponse, MatchmakingQueueStatus } from '../types/api';
 import { AccountApiError } from '../services/httpClient';
+import { createEngineMatch, EnginePlayer } from '../services/engineService';
+import { buildWebAppUrl } from '../utils/referral';
+import { config } from '../config/env';
 
 type DataCallbackContext = Context & { callbackQuery: CallbackQuery.DataQuery };
 
@@ -13,17 +16,6 @@ export function parseMatchFindCallback(data: string): number | null {
   const [, , stakeRaw] = data.split(':');
   const amount = Number(stakeRaw);
   return Number.isFinite(amount) && amount > 0 ? amount : null;
-}
-
-function formatLobbyFound(join: JoinLobbyResponse): string {
-  const { lobby, invoiceLink } = join;
-  const opponent = lobby.players.find((p) => p.status !== 'LEFT');
-  const opponentName = opponent?.username ?? 'opponent';
-  return (
-    `✅ Opponent found: @${opponentName}\n` +
-    `⭐ Stake: ${lobby.stakeAmount} Stars | Prize pool: ${lobby.prizePool} Stars\n\n` +
-    `Pay your stake to confirm your spot:\n${invoiceLink}`
-  );
 }
 
 async function sendSearching(ctx: DataCallbackContext): Promise<number | undefined> {
@@ -36,14 +28,58 @@ async function editOrReply(
   ctx: DataCallbackContext,
   searchMsgId: number | undefined,
   text: string,
+  replyMarkup?: InlineKeyboardMarkup,
 ): Promise<void> {
-  if (searchMsgId) {
-    await ctx.telegram.editMessageText(ctx.chat!.id, searchMsgId, undefined, text).catch(() =>
-      ctx.reply(text),
-    );
+  const opts = replyMarkup ? { reply_markup: replyMarkup } : undefined;
+  if (searchMsgId && ctx.chat) {
+    await ctx.telegram
+      .editMessageText(ctx.chat.id, searchMsgId, undefined, text, opts)
+      .catch(() => ctx.reply(text, opts));
   } else {
-    await ctx.reply(text);
+    await ctx.reply(text, opts);
   }
+}
+
+async function presentMatchFound(
+  ctx: DataCallbackContext,
+  searchMsgId: number | undefined,
+  join: JoinLobbyResponse,
+): Promise<void> {
+  const { lobby } = join;
+  // LobbyPlayer has playerId + username; telegramId is not exposed by the lobby DTO.
+  // TODO: enrich with telegramId by calling accountService.getProfile if needed.
+  const activePlayers = lobby.players.filter((p) => p.status !== 'LEFT').slice(0, 2);
+  if (activePlayers.length !== 2) {
+    await editOrReply(ctx, searchMsgId, '⚠️ Could not start match — please /play again.');
+    return;
+  }
+
+  const players = activePlayers.map((p): EnginePlayer => ({
+    userId: p.playerId,
+    telegramId: 0, // TODO: fetch real telegramId from account-management profile
+    username: p.username ?? `player_${p.playerId.slice(0, 6)}`,
+  })) as [EnginePlayer, EnginePlayer];
+
+  try {
+    await createEngineMatch({
+      matchId: lobby.id,
+      stakeStars: lobby.stakeAmount,
+      players,
+    });
+  } catch {
+    await editOrReply(ctx, searchMsgId, '⚠️ Engine unavailable. Please try again.');
+    return;
+  }
+
+  const webAppUrl = buildWebAppUrl(config.bot.webAppUrl, null, lobby.id);
+  const text =
+    `✅ Opponent found: @${players[1]!.username}\n` +
+    `⭐ Stake: ${lobby.stakeAmount} Stars | Prize pool: ${lobby.prizePool} Stars\n\n` +
+    `Tap Play to enter the rink.`;
+
+  await editOrReply(ctx, searchMsgId, text, {
+    inline_keyboard: [[{ text: '🏒 Play', web_app: { url: webAppUrl } }]] as InlineKeyboardMarkup['inline_keyboard'],
+  } as InlineKeyboardMarkup);
 }
 
 export async function matchFindHandler(ctx: DataCallbackContext): Promise<void> {
@@ -66,7 +102,7 @@ export async function matchFindHandler(ctx: DataCallbackContext): Promise<void> 
     const { matched, data } = await enterQueue(stakeAmount, accessToken);
 
     if (matched) {
-      await editOrReply(ctx, searchMsgId, formatLobbyFound(data as JoinLobbyResponse));
+      await presentMatchFound(ctx, searchMsgId, data as JoinLobbyResponse);
       return;
     }
 
@@ -78,7 +114,7 @@ export async function matchFindHandler(ctx: DataCallbackContext): Promise<void> 
         invoiceLink: '',
         invoiceId: '',
       };
-      await editOrReply(ctx, searchMsgId, formatLobbyFound(join));
+      await presentMatchFound(ctx, searchMsgId, join);
       return;
     }
 
