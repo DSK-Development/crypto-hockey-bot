@@ -5,6 +5,7 @@ import { startCommand } from './commands/start';
 import { playCommand } from './commands/play';
 import { stakeHandler, stakeBackHandler } from './handlers/stakeHandler';
 import { successfulPaymentHandler } from './handlers/paymentHandler';
+import { preCheckoutQueryHandler } from './handlers/preCheckoutQueryHandler';
 import { matchFindHandler } from './handlers/matchmakingHandler';
 
 const bot = new Telegraf(config.bot.token);
@@ -12,6 +13,10 @@ const bot = new Telegraf(config.bot.token);
 bot.start(startCommand);
 bot.command('play', playCommand);
 bot.help((ctx) => ctx.reply('Use /start to open the game or /play to pick a stake.'));
+
+bot.on('pre_checkout_query', (ctx) =>
+  preCheckoutQueryHandler(ctx as Parameters<typeof preCheckoutQueryHandler>[0]),
+);
 
 bot.on('successful_payment', (ctx) =>
   successfulPaymentHandler(ctx as Parameters<typeof successfulPaymentHandler>[0]),

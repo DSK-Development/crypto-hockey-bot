@@ -8,7 +8,7 @@ type SuccessfulPaymentContext = Context & {
   message: Message.SuccessfulPaymentMessage;
 };
 
-function parseInvoicePayload(raw: string): InvoicePayload {
+export function parseInvoicePayload(raw: string): InvoicePayload {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (

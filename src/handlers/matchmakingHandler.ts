@@ -48,10 +48,10 @@ async function editOrReply(
 
 export async function matchFindHandler(ctx: DataCallbackContext): Promise<void> {
   const telegramId = ctx.from?.id;
-  if (!telegramId) return ctx.answerCbQuery();
+  if (!telegramId) { await ctx.answerCbQuery(); return; }
 
   const stakeAmount = parseMatchFindCallback(ctx.callbackQuery.data);
-  if (stakeAmount === null) return ctx.answerCbQuery();
+  if (stakeAmount === null) { await ctx.answerCbQuery(); return; }
 
   const accessToken = getSession(telegramId);
   if (!accessToken) {
