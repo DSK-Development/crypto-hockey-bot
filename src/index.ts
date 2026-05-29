@@ -1,4 +1,5 @@
 import { Telegraf } from 'telegraf';
+import { message } from 'telegraf/filters';
 import { CallbackQuery } from 'telegraf/types';
 import { config } from './config/env';
 import { startCommand } from './commands/start';
@@ -7,6 +8,8 @@ import { stakeHandler, stakeBackHandler } from './handlers/stakeHandler';
 import { successfulPaymentHandler } from './handlers/paymentHandler';
 import { preCheckoutQueryHandler } from './handlers/preCheckoutQueryHandler';
 import { matchFindHandler } from './handlers/matchmakingHandler';
+import { authTelegram } from './services/accountService';
+import { saveSession } from './session/sessionStore';
 
 const bot = new Telegraf(config.bot.token);
 
@@ -17,6 +20,17 @@ bot.help((ctx) => ctx.reply('Use /start to open the game or /play to pick a stak
 bot.on('pre_checkout_query', (ctx) =>
   preCheckoutQueryHandler(ctx as Parameters<typeof preCheckoutQueryHandler>[0]),
 );
+
+bot.on(message('web_app_data'), async (ctx) => {
+  const initData = ctx.message.web_app_data.data;
+  const telegramId = ctx.from.id;
+  try {
+    const auth = await authTelegram(initData);
+    saveSession(telegramId, auth.accessToken, auth.expiresIn);
+  } catch (err) {
+    console.error('[auth] web_app_data failed for', telegramId, ':', err);
+  }
+});
 
 bot.on('successful_payment', (ctx) =>
   successfulPaymentHandler(ctx as Parameters<typeof successfulPaymentHandler>[0]),
