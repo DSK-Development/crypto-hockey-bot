@@ -1,0 +1,78 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: crypto_hockey
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  account-management:
+    build:
+      context: ../crypto-hockey-account-management
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/crypto_hockey
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: ${JWT_SECRET}
+      SERVICE_TOKEN: ${SERVICE_TOKEN}
+      SPRING_PROFILES_ACTIVE: prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  game-engine:
+    build:
+      context: ../crypto-hockey-game-engine
+    environment:
+      ENGINE_SERVICE_TOKEN: ${ENGINE_SERVICE_TOKEN}
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  bot:
+    build:
+      context: .
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEBAPP_URL: ${WEBAPP_URL}
+      ACCOUNT_MANAGEMENT_URL: http://account-management:8080
+      SERVICE_TOKEN: ${SERVICE_TOKEN}
+      ENGINE_BASE_URL: http://game-engine:8081
+      ENGINE_SERVICE_TOKEN: ${ENGINE_SERVICE_TOKEN}
+    depends_on:
+      account-management:
+        condition: service_healthy
+      game-engine:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../crypto-hockey-frontend
+      args:
+        VITE_ENGINE_WS_URL: ${VITE_ENGINE_WS_URL}
+    ports:
+      - "80:80"
+
+volumes:
+  postgres_data:

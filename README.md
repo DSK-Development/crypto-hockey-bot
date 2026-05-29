@@ -72,6 +72,33 @@ npm run build        # tsc → dist/
 npm start            # node dist/index.js
 ```
 
+## Docker
+
+Build the bot image alone:
+
+```bash
+docker build -t crypto-hockey-bot .
+docker run \
+  -e BOT_TOKEN=<your-bot-token> \
+  -e WEBAPP_URL=https://your-frontend.com \
+  -e ACCOUNT_MANAGEMENT_URL=http://account-management:8080 \
+  -e SERVICE_TOKEN=change-me \
+  -e ENGINE_BASE_URL=http://game-engine:8081 \
+  -e ENGINE_SERVICE_TOKEN=change-me \
+  crypto-hockey-bot
+```
+
+### Full-stack with docker-compose
+
+`docker-compose.yml` in this repo orchestrates all five services: **postgres**, **account-management**, **game-engine**, **bot**, **frontend**.
+
+```bash
+cp .env.example .env   # fill in BOT_TOKEN, JWT_SECRET, SERVICE_TOKEN, ENGINE_SERVICE_TOKEN, WEBAPP_URL, VITE_ENGINE_WS_URL
+docker compose up --build
+```
+
+The compose file builds sibling repos via relative paths (`../crypto-hockey-account-management`, etc.), so all four repos must be checked out under the same parent directory.
+
 ## Architecture boundaries
 
 **This service does NOT handle:**
