@@ -15,27 +15,28 @@ This service is the player-facing edge: it handles the Telegram bot interface, l
 
 ```
 src/
-├── index.ts                    # bot entrypoint, command/event wiring
-├── config/env.ts               # validated env loader
+├── index.ts                         # bot entrypoint, command/event wiring
+├── config/env.ts                    # validated env loader
 ├── commands/
-│   ├── start.ts                # /start with Play WebApp button + referral
-│   └── play.ts                 # /play stake selection
+│   ├── start.ts                     # /start with Play WebApp button + referral
+│   └── play.ts                      # /play stake selection
 ├── handlers/
-│   ├── stakeHandler.ts         # callback after stake amount tapped
-│   ├── matchmakingHandler.ts   # "searching..." + queue polling
-│   └── paymentHandler.ts       # successful_payment → hold stake
+│   ├── stakeHandler.ts              # callback after stake amount tapped
+│   ├── matchmakingHandler.ts        # "searching..." + queue polling
+│   ├── paymentHandler.ts            # successful_payment → hold stake (idempotent)
+│   └── preCheckoutQueryHandler.ts   # pre_checkout_query → answerPreCheckoutQuery
 ├── keyboards/
-│   └── stakeKeyboard.ts        # 10/50/100 Stars inline keyboard
+│   └── stakeKeyboard.ts             # 10/50/100 Stars inline keyboard
 ├── services/
-│   ├── httpClient.ts           # axios instance + AccountApiError
-│   ├── accountService.ts       # authTelegram, getProfile, getBalance, holdStake
-│   └── matchmakingService.ts   # enterQueue, getQueueStatus, leaveQueue, polling
+│   ├── httpClient.ts                # axios instance + AccountApiError
+│   ├── accountService.ts            # authTelegram, getProfile, getBalance, holdStake
+│   └── matchmakingService.ts        # enterQueue, getQueueStatus, leaveQueue, polling
 ├── session/
-│   └── sessionStore.ts         # in-memory JWT store keyed by telegramId
+│   └── sessionStore.ts              # in-memory JWT store keyed by telegramId
 ├── types/
-│   └── api.ts                  # TS types matching account-service swagger
+│   └── api.ts                       # TS types matching account-service swagger
 └── utils/
-    └── referral.ts             # parse ref_xxx, append to WebApp URL
+    └── referral.ts                  # parse ref_xxx, append to WebApp URL
 ```
 
 ## Features
@@ -46,7 +47,9 @@ src/
 | `/play` | Inline keyboard with stake options: ⭐ 10, 50, 100 Stars. |
 | Stake confirmation | After picking a stake, offers `🔍 Find Match` (matchmaking via bot) or `🏒 Play (WebApp)`. |
 | Matchmaking | Sends "Searching...", polls `/matchmaking/queue` & `/matchmaking/status`, edits message in place with the result. |
-| Payments | Handles Telegram `successful_payment` event — extracts `total_amount` + `telegram_payment_charge_id`, parses `invoice_payload` (`{lobbyId, playerId, stakeAmount}`), calls `POST /wallet/hold` on account-management. |
+| Pre-checkout | Answers every Telegram `pre_checkout_query` within the required 10 s window — validates `total_amount` matches `invoice_payload.stakeAmount`. Without this, all Stars payments fail. |
+| Payments | Handles Telegram `successful_payment` event — extracts `total_amount` + `telegram_payment_charge_id`, parses `invoice_payload` (`{lobbyId, playerId, stakeAmount}`), calls `POST /wallet/hold` on account-management. Idempotent: duplicate deliveries are dropped by a module-level processed-charge Set. |
+| Session population | Handles `web_app_data` from the Mini App — authenticates `initData` with account-management and saves the JWT in the in-memory session store so subsequent matchmaking calls have a valid token. |
 
 ## Configuration
 
