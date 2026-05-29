@@ -4,6 +4,8 @@ import { holdStake } from '../services/accountService';
 import { config } from '../config/env';
 import { InvoicePayload } from '../types/api';
 
+const processedChargeIds = new Set<string>();
+
 type SuccessfulPaymentContext = Context & {
   message: Message.SuccessfulPaymentMessage;
 };
@@ -30,6 +32,12 @@ export async function successfulPaymentHandler(ctx: SuccessfulPaymentContext): P
   const payment = ctx.message.successful_payment;
   const telegramPaymentChargeId = payment.telegram_payment_charge_id;
   const amount = payment.total_amount;
+
+  if (processedChargeIds.has(telegramPaymentChargeId)) {
+    console.log('[payment] duplicate delivery, charge already processed:', telegramPaymentChargeId);
+    return;
+  }
+  processedChargeIds.add(telegramPaymentChargeId);
 
   let payload: InvoicePayload;
   try {
