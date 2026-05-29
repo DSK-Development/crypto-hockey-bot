@@ -1,4 +1,66 @@
+# Зависимости
 node_modules/
-dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Переменные окружения
 .env
-*.js.map
+.env.local
+.env.*.local
+
+# Логи
+logs/
+*.log
+npm-debug.log*
+
+# Директории сборки
+dist/
+build/
+coverage/
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.classpath
+.settings/
+
+# ОС
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Файлы отладки
+debug.log
+*.pid
+*.seed
+
+# Отчеты о покрытии
+.nyc_output/
+
+# Временные файлы
+tmp/
+temp/
+
+# Конфиги пользователя
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Файлы логов PM2
+.pm2/
+
+# Файлы Redis
+dump.rdb
+
+# Рабочие директории
+*.swp
+*.swo
+*~
