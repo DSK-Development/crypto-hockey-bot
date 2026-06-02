@@ -1,8 +1,6 @@
 import { Context } from 'telegraf';
 import { CallbackQuery } from 'telegraf/types';
 import { parseStakeCallback } from '../keyboards/stakeKeyboard';
-import { buildWebAppUrl } from '../utils/referral';
-import { config } from '../config/env';
 
 type CallbackQueryContext = Context & {
   callbackQuery: CallbackQuery.DataQuery;
@@ -16,14 +14,13 @@ export async function stakeHandler(ctx: CallbackQueryContext): Promise<void> {
     return;
   }
 
-  const url = new URL(buildWebAppUrl(config.bot.webAppUrl, null));
-  url.searchParams.set('stake', String(amount));
-
-  await ctx.editMessageText(`⭐ Stake: ${amount} Stars — choose how to play:`, {
+  // A playable Mini App link requires a matchId, which only exists once an
+  // opponent is found. So we only offer matchmaking here — the bot sends the
+  // "Play" button (with matchId) once the match is created.
+  await ctx.editMessageText(`⭐ Stake: ${amount} Stars — ready to find an opponent?`, {
     reply_markup: {
       inline_keyboard: [
         [{ text: '🔍 Find Match', callback_data: `match:find:${amount}` }],
-        [{ text: '🏒 Play (WebApp)', web_app: { url: url.toString() } }],
         [{ text: '← Change stake', callback_data: 'stake:back' }],
       ],
     },

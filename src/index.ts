@@ -30,8 +30,10 @@ bot.on(message('web_app_data'), async (ctx) => {
   try {
     const auth = await authTelegram(initData);
     await saveSession(telegramId, auth.accessToken, auth.expiresIn);
+    await ctx.reply('✅ Signed in! Use /play to find a match or /testmatch to try a solo match.');
   } catch (err) {
     console.error('[auth] web_app_data failed for', telegramId, ':', err);
+    await ctx.reply('⚠️ Sign-in failed. Please try /start again.');
   }
 });
 
