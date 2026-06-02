@@ -61,6 +61,10 @@ Copy `.env.example` to `.env` and fill in:
 | `WEBAPP_URL` | URL of the Mini App that the Play button opens |
 | `ACCOUNT_MANAGEMENT_URL` | Base URL of the account-management service |
 | `SERVICE_TOKEN` | Service-to-service JWT used for `/wallet/hold` calls |
+| `ENGINE_BASE_URL` | Base URL of the game-engine service |
+| `ENGINE_SERVICE_TOKEN` | Token the bot uses to authenticate calls to game-engine |
+| `BOT_SERVICE_TOKEN` | Token game-engine must supply when calling `POST /matches/:id/result` |
+| `REDIS_URL` | Redis connection URL for match-state persistence |
 | `NODE_ENV` | `development` \| `production` |
 
 ## Running
@@ -85,6 +89,8 @@ docker run \
   -e SERVICE_TOKEN=change-me \
   -e ENGINE_BASE_URL=http://game-engine:8081 \
   -e ENGINE_SERVICE_TOKEN=change-me \
+  -e BOT_SERVICE_TOKEN=change-me \
+  -e REDIS_URL=redis://redis:6379 \
   crypto-hockey-bot
 ```
 

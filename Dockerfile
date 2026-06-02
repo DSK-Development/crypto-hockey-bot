@@ -13,4 +13,5 @@ COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
 COPY --from=build /build/dist ./dist
 USER app
+EXPOSE 3000
 CMD ["node", "dist/index.js"]
