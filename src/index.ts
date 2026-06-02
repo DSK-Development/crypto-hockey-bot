@@ -56,7 +56,7 @@ bot.action(/^stake:\d+$/, (ctx) => {
 const webhookUrl = process.env.WEBHOOK_URL;
 
 async function main() {
-  await bot.init();
+  await bot.telegram.getMe();
 
   const httpServer = startHttpServer(bot);
 
