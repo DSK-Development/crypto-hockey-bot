@@ -1,27 +1,11 @@
 import { Context } from 'telegraf';
-import { getSession } from '../session/sessionStore';
-import { getProfile } from '../services/accountService';
 import { createEngineMatch } from '../services/engineService';
 import { buildWebAppUrl } from '../utils/referral';
 import { config } from '../config/env';
 
 export async function testMatchCommand(ctx: Context): Promise<void> {
-  const telegramId = ctx.from?.id;
-  if (!telegramId) return;
-
-  const accessToken = await getSession(telegramId);
-  if (!accessToken) {
-    await ctx.reply('⚠️ Open the game first via /start to sign in, then try again.');
-    return;
-  }
-
-  let profile: Awaited<ReturnType<typeof getProfile>>;
-  try {
-    profile = await getProfile(accessToken);
-  } catch {
-    await ctx.reply('❌ Could not fetch your profile. Try again.');
-    return;
-  }
+  const from = ctx.from;
+  if (!from) return;
 
   const matchId = crypto.randomUUID();
   try {
@@ -29,7 +13,7 @@ export async function testMatchCommand(ctx: Context): Promise<void> {
       matchId,
       stakeStars: 0,
       players: [
-        { userId: profile.id, telegramId: profile.telegramId, username: profile.username || 'you' },
+        { userId: String(from.id), telegramId: from.id, username: from.username || `user_${from.id}` },
         { userId: 'test-bot', telegramId: 0, username: 'TestBot' },
       ],
     });
