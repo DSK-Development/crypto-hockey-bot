@@ -55,9 +55,8 @@ bot.action(/^stake:\d+$/, (ctx) => {
 
 const httpServer = startHttpServer(bot);
 
-const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
-if (railwayDomain) {
-  const webhookUrl = `https://${railwayDomain}/telegram`;
+const webhookUrl = process.env.WEBHOOK_URL;
+if (webhookUrl) {
   bot.telegram.setWebhook(webhookUrl).then(() => {
     console.log(`Bot started [webhook: ${webhookUrl}]`);
   });
