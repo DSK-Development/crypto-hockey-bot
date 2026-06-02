@@ -7,9 +7,16 @@ import { createMatchResultRouter } from './routes/matchResult';
 
 export function startHttpServer(bot: Telegraf): http.Server {
   const app = express();
-  app.use(bot.webhookCallback('/telegram'));
-  app.use('/matchmaking', express.json(), createMatchmakingRouter(bot));
-  app.use('/matches', express.json(), createMatchResultRouter(bot));
+  app.use(express.json());
+  app.post('/telegram', (req, res) => {
+    console.log('[webhook] update received');
+    bot.handleUpdate(req.body, res).catch((err) => {
+      console.error('[webhook] handleUpdate error:', err);
+      res.sendStatus(500);
+    });
+  });
+  app.use('/matchmaking', createMatchmakingRouter(bot));
+  app.use('/matches', createMatchResultRouter(bot));
 
   const port = Number(config.bot.httpPort);
   const server = app.listen(port, () => {
