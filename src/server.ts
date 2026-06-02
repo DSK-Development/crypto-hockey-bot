@@ -10,6 +10,7 @@ export function startHttpServer(bot: Telegraf): http.Server {
   app.use(express.json());
   app.use('/matchmaking', createMatchmakingRouter(bot));
   app.use('/matches', createMatchResultRouter(bot));
+  app.use(bot.webhookCallback('/telegram'));
 
   const port = Number(config.bot.httpPort);
   const server = app.listen(port, () => {

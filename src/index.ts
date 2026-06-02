@@ -53,9 +53,17 @@ bot.action(/^stake:\d+$/, (ctx) => {
 
 const httpServer = startHttpServer(bot);
 
-bot.launch().then(() => {
-  console.log(`Bot started [${config.nodeEnv}]`);
-});
+const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+if (railwayDomain) {
+  const webhookUrl = `https://${railwayDomain}/telegram`;
+  bot.telegram.setWebhook(webhookUrl).then(() => {
+    console.log(`Bot started [webhook: ${webhookUrl}]`);
+  });
+} else {
+  bot.launch().then(() => {
+    console.log(`Bot started [polling: ${config.nodeEnv}]`);
+  });
+}
 
 process.once('SIGINT', () => { void closeRedis(); httpServer.close(); bot.stop('SIGINT'); });
 process.once('SIGTERM', () => { void closeRedis(); httpServer.close(); bot.stop('SIGTERM'); });
