@@ -53,31 +53,17 @@ bot.action(/^stake:\d+$/, (ctx) => {
   return stakeHandler(ctx as Parameters<typeof stakeHandler>[0]);
 });
 
-const webhookUrl = process.env.WEBHOOK_URL;
+const httpServer = startHttpServer(bot);
 
-async function main() {
-  await bot.telegram.getMe();
-
-  const httpServer = startHttpServer(bot);
-
-  if (webhookUrl) {
-    await bot.telegram.setWebhook(webhookUrl);
-    console.log(`Bot started [webhook: ${webhookUrl}]`);
-  } else {
-    await bot.launch();
-    console.log(`Bot started [polling: ${config.nodeEnv}]`);
-  }
-
-  const shutdown = (signal: string) => {
-    void closeRedis();
-    httpServer.close();
-    if (!webhookUrl) bot.stop(signal);
-  };
-  process.once('SIGINT', () => shutdown('SIGINT'));
-  process.once('SIGTERM', () => shutdown('SIGTERM'));
-}
-
-main().catch((err) => {
+// Clear any existing webhook so polling works cleanly
+bot.telegram.deleteWebhook().then(() =>
+  bot.launch({ dropPendingUpdates: true })
+).then(() => {
+  console.log('Bot started [polling]');
+}).catch((err) => {
   console.error('startup error:', err);
   process.exit(1);
 });
+
+process.once('SIGINT', () => { void closeRedis(); httpServer.close(); bot.stop('SIGINT'); });
+process.once('SIGTERM', () => { void closeRedis(); httpServer.close(); bot.stop('SIGTERM'); });
