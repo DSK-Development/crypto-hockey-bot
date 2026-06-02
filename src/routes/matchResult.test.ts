@@ -95,9 +95,9 @@ describe('POST /matches/:id/result', () => {
       .set('X-Service-Token', 'secret-bot-token')
       .send(validBody);
 
-    const calls = vi.mocked(bot.telegram.sendMessage).mock.calls;
-    const winnerCall = calls.find(([id]) => id === 111);
-    const loserCall = calls.find(([id]) => id === 222);
+    const calls = (bot.telegram.sendMessage as ReturnType<typeof vi.fn>).mock.calls as [number, string][];
+    const winnerCall = calls.find((c) => c[0] === 111);
+    const loserCall = calls.find((c) => c[0] === 222);
     expect(winnerCall?.[1]).toContain('🏆');
     expect(loserCall?.[1]).toContain('💔');
   });

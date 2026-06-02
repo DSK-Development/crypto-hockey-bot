@@ -19,7 +19,7 @@ export function createMatchResultRouter(bot: Telegraf): Router {
       return;
     }
 
-    const matchId = req.params.id;
+    const matchId = req.params.id as string;
     const match = registry.get(matchId);
     if (!match) {
       res.status(404).json({ error: 'Match not found' });
