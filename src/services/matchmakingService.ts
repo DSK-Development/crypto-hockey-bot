@@ -45,7 +45,7 @@ export async function enterQueue(
     playerId: e.playerId,
     username: e.username,
     status: 'READY',
-    joinedAt: new Date().toISOString(),
+    joinedAt: new Date(e.joinedAt).toISOString(),
   });
 
   return {
