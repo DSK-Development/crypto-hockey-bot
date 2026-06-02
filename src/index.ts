@@ -53,23 +53,31 @@ bot.action(/^stake:\d+$/, (ctx) => {
   return stakeHandler(ctx as Parameters<typeof stakeHandler>[0]);
 });
 
-const httpServer = startHttpServer(bot);
-
 const webhookUrl = process.env.WEBHOOK_URL;
-if (webhookUrl) {
-  bot.telegram.setWebhook(webhookUrl)
-    .then(() => console.log(`Bot started [webhook: ${webhookUrl}]`))
-    .catch((err: unknown) => console.error('setWebhook failed (non-fatal):', err));
-} else {
-  bot.launch().then(() => {
+
+async function main() {
+  await bot.init();
+
+  const httpServer = startHttpServer(bot);
+
+  if (webhookUrl) {
+    await bot.telegram.setWebhook(webhookUrl);
+    console.log(`Bot started [webhook: ${webhookUrl}]`);
+  } else {
+    await bot.launch();
     console.log(`Bot started [polling: ${config.nodeEnv}]`);
-  });
+  }
+
+  const shutdown = (signal: string) => {
+    void closeRedis();
+    httpServer.close();
+    if (!webhookUrl) bot.stop(signal);
+  };
+  process.once('SIGINT', () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-const shutdown = (signal: string) => {
-  void closeRedis();
-  httpServer.close();
-  if (!webhookUrl) bot.stop(signal);
-};
-process.once('SIGINT', () => shutdown('SIGINT'));
-process.once('SIGTERM', () => shutdown('SIGTERM'));
+main().catch((err) => {
+  console.error('startup error:', err);
+  process.exit(1);
+});
