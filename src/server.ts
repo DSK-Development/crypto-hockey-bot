@@ -7,10 +7,9 @@ import { createMatchResultRouter } from './routes/matchResult';
 
 export function startHttpServer(bot: Telegraf): http.Server {
   const app = express();
-  app.use(express.json());
-  app.use('/matchmaking', createMatchmakingRouter(bot));
-  app.use('/matches', createMatchResultRouter(bot));
   app.use(bot.webhookCallback('/telegram'));
+  app.use('/matchmaking', express.json(), createMatchmakingRouter(bot));
+  app.use('/matches', express.json(), createMatchResultRouter(bot));
 
   const port = Number(config.bot.httpPort);
   const server = app.listen(port, () => {
