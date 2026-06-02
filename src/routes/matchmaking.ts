@@ -55,16 +55,20 @@ export function createMatchmakingRouter(bot: Telegraf): Router {
     const join = result.data as JoinLobbyResponse;
     const { lobby } = join;
     const matchRecord = registry.get(lobby.id);
+    if (!matchRecord) {
+      res.status(503).json({ error: 'Match state unavailable' });
+      return;
+    }
 
     const players: [EnginePlayer, EnginePlayer] = [
       {
         userId: lobby.players[0]!.playerId,
-        telegramId: matchRecord!.player1.telegramId,
+        telegramId: matchRecord.player1.telegramId,
         username: lobby.players[0]!.username,
       },
       {
         userId: lobby.players[1]!.playerId,
-        telegramId: matchRecord!.player2.telegramId,
+        telegramId: matchRecord.player2.telegramId,
         username: lobby.players[1]!.username,
       },
     ];
@@ -84,8 +88,8 @@ export function createMatchmakingRouter(bot: Telegraf): Router {
     };
 
     await Promise.allSettled([
-      bot.telegram.sendMessage(matchRecord!.player1.telegramId, text, markup),
-      bot.telegram.sendMessage(matchRecord!.player2.telegramId, text, markup),
+      bot.telegram.sendMessage(matchRecord.player1.telegramId, text, markup),
+      bot.telegram.sendMessage(matchRecord.player2.telegramId, text, markup),
     ]);
 
     res.status(200).json(join);
