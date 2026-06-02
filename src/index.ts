@@ -67,5 +67,15 @@ bot.telegram.deleteWebhook().then(() =>
   process.exit(1);
 });
 
-process.once('SIGINT', () => { void closeRedis(); httpServer.close(); bot.stop('SIGINT'); });
-process.once('SIGTERM', () => { void closeRedis(); httpServer.close(); bot.stop('SIGTERM'); });
+function shutdown(signal: string): void {
+  void closeRedis();
+  httpServer.close();
+  try {
+    bot.stop(signal);
+  } catch {
+    /* bot may not have finished launch during container stop */
+  }
+}
+
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
