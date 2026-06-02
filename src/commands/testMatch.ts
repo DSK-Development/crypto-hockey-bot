@@ -17,8 +17,9 @@ export async function testMatchCommand(ctx: Context): Promise<void> {
         { userId: 'test-bot', telegramId: 0, username: 'TestBot' },
       ],
     });
-  } catch {
-    await ctx.reply('❌ Engine unavailable. Make sure the game engine is running.');
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`❌ Engine error: ${msg}`);
     return;
   }
 
