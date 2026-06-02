@@ -66,5 +66,10 @@ if (webhookUrl) {
   });
 }
 
-process.once('SIGINT', () => { void closeRedis(); httpServer.close(); bot.stop('SIGINT'); });
-process.once('SIGTERM', () => { void closeRedis(); httpServer.close(); bot.stop('SIGTERM'); });
+const shutdown = (signal: string) => {
+  void closeRedis();
+  httpServer.close();
+  if (!webhookUrl) bot.stop(signal);
+};
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
