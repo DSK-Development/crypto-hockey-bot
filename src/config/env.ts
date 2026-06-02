@@ -14,6 +14,8 @@ export const config = {
   bot: {
     token: requireEnv('BOT_TOKEN'),
     webAppUrl: requireEnv('WEBAPP_URL'),
+    serviceToken: requireEnv('BOT_SERVICE_TOKEN'),
+    httpPort: process.env.BOT_HTTP_PORT ?? '3000',
   },
   accountManagement: {
     baseUrl: requireEnv('ACCOUNT_MANAGEMENT_URL'),
@@ -22,6 +24,9 @@ export const config = {
   engine: {
     baseUrl: requireEnv('ENGINE_BASE_URL'),
     serviceToken: requireEnv('ENGINE_SERVICE_TOKEN'),
+  },
+  redis: {
+    url: process.env.REDIS_URL ?? 'redis://localhost:6379',
   },
   nodeEnv: process.env.NODE_ENV ?? 'development',
 } as const;
