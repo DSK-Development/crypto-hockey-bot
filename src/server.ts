@@ -9,10 +9,9 @@ export function startHttpServer(bot: Telegraf): http.Server {
   const app = express();
   app.use(express.json());
   app.post('/telegram', (req, res) => {
-    console.log('[webhook] update received');
-    bot.handleUpdate(req.body, res).catch((err) => {
+    res.sendStatus(200);
+    bot.handleUpdate(req.body).catch((err) => {
       console.error('[webhook] handleUpdate error:', err);
-      res.sendStatus(500);
     });
   });
   app.use('/matchmaking', createMatchmakingRouter(bot));
