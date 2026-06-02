@@ -1,5 +1,7 @@
 import { Context } from 'telegraf';
 import { createEngineMatch } from '../services/engineService';
+import { getProfile } from '../services/accountService';
+import { getSession } from '../session/sessionStore';
 import { buildWebAppUrl } from '../utils/referral';
 import { config } from '../config/env';
 
@@ -7,14 +9,36 @@ export async function testMatchCommand(ctx: Context): Promise<void> {
   const from = ctx.from;
   if (!from) return;
 
+  const accessToken = await getSession(from.id);
+  if (!accessToken) {
+    await ctx.reply('⚠️ Sign in first: /start → Open & sign in, then run /testmatch again.');
+    return;
+  }
+
+  let profile: Awaited<ReturnType<typeof getProfile>>;
+  try {
+    profile = await getProfile(accessToken);
+  } catch {
+    await ctx.reply('⚠️ Session expired. Use /start to sign in again.');
+    return;
+  }
+
   const matchId = crypto.randomUUID();
   try {
     await createEngineMatch({
       matchId,
       stakeStars: 0,
       players: [
-        { userId: String(from.id), telegramId: from.id, username: from.username || `user_${from.id}` },
-        { userId: 'test-bot', telegramId: 0, username: 'TestBot' },
+        {
+          userId: profile.id,
+          telegramId: profile.telegramId,
+          username: profile.username || `user_${from.id}`,
+        },
+        {
+          userId: '00000000-0000-0000-0000-000000000099',
+          telegramId: 0,
+          username: 'TestBot',
+        },
       ],
     });
   } catch (err: unknown) {
