@@ -6,15 +6,13 @@ import { createMatchmakingRouter } from './routes/matchmaking';
 import { createMatchResultRouter } from './routes/matchResult';
 import { createAuthRouter } from './routes/auth';
 
-function webAppCors(req: Request, res: Response, next: NextFunction): void {
-  const origin = req.headers.origin;
-  const allowed = new URL(config.bot.webAppUrl).origin;
-  if (origin === allowed) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  }
-  if (req.method === 'OPTIONS') {
+// Mini App runs on a different origin than the bot API. initData in the body is
+// already signed by Telegram, so we allow any origin for /auth (no cookies).
+function webAppCors(_req: Request, res: Response, next: NextFunction): void {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (_req.method === 'OPTIONS') {
     res.sendStatus(204);
     return;
   }

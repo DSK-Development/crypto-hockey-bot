@@ -2,15 +2,41 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 
+vi.mock('../config/env', () => ({
+  config: {
+    bot: { token: 'test', webAppUrl: 'https://app.example.com', serviceToken: 'x', httpPort: '3000' },
+    accountManagement: { baseUrl: 'http://localhost:8080', serviceToken: 'x' },
+    engine: { baseUrl: 'http://localhost:8081', serviceToken: 'x' },
+    redis: { url: 'redis://localhost:6379' },
+    nodeEnv: 'test',
+  },
+}));
+
+vi.mock('../services/httpClient', () => {
+  class AccountApiError extends Error {
+    readonly status: number;
+    readonly code: string;
+    constructor(status: number, code: string, message: string) {
+      super(message);
+      this.name = 'AccountApiError';
+      this.status = status;
+      this.code = code;
+    }
+  }
+  return { AccountApiError, httpClient: {} };
+});
+
 vi.mock('../services/accountService', () => ({
   authTelegram: vi.fn(),
 }));
 
 vi.mock('../session/sessionStore', () => ({
   saveSession: vi.fn(),
+  SessionStoreError: class SessionStoreError extends Error {},
 }));
 
 import { authTelegram } from '../services/accountService';
+import { AccountApiError } from '../services/httpClient';
 import { saveSession } from '../session/sessionStore';
 import { createAuthRouter } from './auth';
 
@@ -65,12 +91,13 @@ describe('POST /auth/session', () => {
   });
 
   it('returns 401 when account auth fails', async () => {
-    authTelegramMock.mockRejectedValue(new Error('invalid'));
+    authTelegramMock.mockRejectedValue(new AccountApiError(401, 'INVALID_INIT_DATA', 'HMAC signature mismatch'));
 
     const res = await request(app())
       .post('/auth/session')
       .send({ initData: 'bad' });
 
     expect(res.status).toBe(401);
+    expect(res.body.error).toBe('INVALID_INIT_DATA');
   });
 });
