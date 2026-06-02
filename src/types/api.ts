@@ -97,6 +97,12 @@ export interface InvoicePayload {
   stakeAmount: number;
 }
 
+export interface PlayerBasicInfo {
+  id: string;
+  telegramId: number;
+  username: string;
+}
+
 export interface ApiError {
   code: string;
   message: string;

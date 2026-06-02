@@ -1,27 +1,21 @@
-interface Session {
-  accessToken: string;
-  expiresAt: number;
+import Redis from 'ioredis';
+
+const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
+
+const sessionKey = (telegramId: number): string => `session:${telegramId}`;
+
+export async function saveSession(telegramId: number, accessToken: string, expiresIn: number): Promise<void> {
+  await redis.set(sessionKey(telegramId), accessToken, 'EX', expiresIn);
 }
 
-const store = new Map<number, Session>();
-
-export function saveSession(telegramId: number, accessToken: string, expiresIn: number): void {
-  store.set(telegramId, {
-    accessToken,
-    expiresAt: Date.now() + expiresIn * 1000,
-  });
+export async function getSession(telegramId: number): Promise<string | null> {
+  return redis.get(sessionKey(telegramId));
 }
 
-export function getSession(telegramId: number): string | null {
-  const session = store.get(telegramId);
-  if (!session) return null;
-  if (Date.now() >= session.expiresAt) {
-    store.delete(telegramId);
-    return null;
-  }
-  return session.accessToken;
+export async function deleteSession(telegramId: number): Promise<void> {
+  await redis.del(sessionKey(telegramId));
 }
 
-export function deleteSession(telegramId: number): void {
-  store.delete(telegramId);
+export async function closeRedis(): Promise<void> {
+  await redis.quit();
 }

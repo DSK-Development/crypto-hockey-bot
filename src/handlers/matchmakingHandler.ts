@@ -5,6 +5,7 @@ import { enterQueue, pollUntilMatched, leaveQueue } from '../services/matchmakin
 import { JoinLobbyResponse, MatchmakingQueueStatus } from '../types/api';
 import { AccountApiError } from '../services/httpClient';
 import { createEngineMatch, EnginePlayer } from '../services/engineService';
+import { getPlayerById } from '../services/accountService';
 import { buildWebAppUrl } from '../utils/referral';
 import { config } from '../config/env';
 
@@ -46,18 +47,26 @@ async function presentMatchFound(
   join: JoinLobbyResponse,
 ): Promise<void> {
   const { lobby } = join;
-  // LobbyPlayer has playerId + username; telegramId is not exposed by the lobby DTO.
-  // TODO: enrich with telegramId by calling accountService.getProfile if needed.
   const activePlayers = lobby.players.filter((p) => p.status !== 'LEFT').slice(0, 2);
   if (activePlayers.length !== 2) {
     await editOrReply(ctx, searchMsgId, '⚠️ Could not start match — please /play again.');
     return;
   }
 
-  const players = activePlayers.map((p): EnginePlayer => ({
+  let playerInfos: Array<{ telegramId: number; username: string }>;
+  try {
+    playerInfos = await Promise.all(
+      activePlayers.map((p) => getPlayerById(p.playerId, config.accountManagement.serviceToken)),
+    );
+  } catch {
+    await editOrReply(ctx, searchMsgId, '⚠️ Could not fetch player info. Please try again.');
+    return;
+  }
+
+  const players = activePlayers.map((p, i): EnginePlayer => ({
     userId: p.playerId,
-    telegramId: 0, // TODO: fetch real telegramId from account-management profile
-    username: p.username ?? `player_${p.playerId.slice(0, 6)}`,
+    telegramId: playerInfos[i]!.telegramId,
+    username: playerInfos[i]!.username || `player_${p.playerId.slice(0, 6)}`,
   })) as [EnginePlayer, EnginePlayer];
 
   try {
@@ -89,7 +98,7 @@ export async function matchFindHandler(ctx: DataCallbackContext): Promise<void> 
   const stakeAmount = parseMatchFindCallback(ctx.callbackQuery.data);
   if (stakeAmount === null) { await ctx.answerCbQuery(); return; }
 
-  const accessToken = getSession(telegramId);
+  const accessToken = await getSession(telegramId);
   if (!accessToken) {
     await ctx.answerCbQuery();
     await ctx.reply('⚠️ Please open the game first to sign in, then try again.');

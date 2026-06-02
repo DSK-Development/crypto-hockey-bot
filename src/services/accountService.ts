@@ -3,6 +3,7 @@ import {
   TelegramAuthRequest,
   AuthResponse,
   PlayerProfile,
+  PlayerBasicInfo,
   WalletBalance,
   HoldStakeRequest,
   Transaction,
@@ -23,6 +24,11 @@ export async function getProfile(accessToken: string): Promise<PlayerProfile> {
 
 export async function getBalance(accessToken: string): Promise<WalletBalance> {
   const { data } = await httpClient.get<WalletBalance>('/wallet/balance', withAuth(accessToken));
+  return data;
+}
+
+export async function getPlayerById(playerId: string, serviceToken: string): Promise<PlayerBasicInfo> {
+  const { data } = await httpClient.get<PlayerBasicInfo>(`/internal/users/${playerId}`, withAuth(serviceToken));
   return data;
 }
 
