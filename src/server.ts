@@ -22,6 +22,9 @@ function webAppCors(_req: Request, res: Response, next: NextFunction): void {
 export function startHttpServer(bot: Telegraf): http.Server {
   const app = express();
   app.use(express.json());
+  app.get('/health', (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
   app.use('/auth', webAppCors, createAuthRouter());
   app.post('/telegram', (req, res) => {
     res.sendStatus(200);
