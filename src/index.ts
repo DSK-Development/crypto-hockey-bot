@@ -8,6 +8,7 @@ import { stakeHandler, stakeBackHandler } from './handlers/stakeHandler';
 import { successfulPaymentHandler } from './handlers/paymentHandler';
 import { preCheckoutQueryHandler } from './handlers/preCheckoutQueryHandler';
 import { matchFindHandler } from './handlers/matchmakingHandler';
+import { testMatchCommand } from './commands/testMatch';
 import { authTelegram } from './services/accountService';
 import { saveSession, closeRedis } from './session/sessionStore';
 import { startHttpServer } from './server';
@@ -16,6 +17,7 @@ const bot = new Telegraf(config.bot.token);
 
 bot.start(startCommand);
 bot.command('play', playCommand);
+bot.command('testmatch', testMatchCommand);
 bot.help((ctx) => ctx.reply('Use /start to open the game or /play to pick a stake.'));
 
 bot.on('pre_checkout_query', (ctx) =>
