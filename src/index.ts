@@ -9,7 +9,8 @@ import { successfulPaymentHandler } from './handlers/paymentHandler';
 import { preCheckoutQueryHandler } from './handlers/preCheckoutQueryHandler';
 import { matchFindHandler } from './handlers/matchmakingHandler';
 import { authTelegram } from './services/accountService';
-import { saveSession } from './session/sessionStore';
+import { saveSession, closeRedis } from './session/sessionStore';
+import { startHttpServer } from './server';
 
 const bot = new Telegraf(config.bot.token);
 
@@ -26,7 +27,7 @@ bot.on(message('web_app_data'), async (ctx) => {
   const telegramId = ctx.from.id;
   try {
     const auth = await authTelegram(initData);
-    saveSession(telegramId, auth.accessToken, auth.expiresIn);
+    await saveSession(telegramId, auth.accessToken, auth.expiresIn);
   } catch (err) {
     console.error('[auth] web_app_data failed for', telegramId, ':', err);
   }
@@ -50,9 +51,11 @@ bot.action(/^stake:\d+$/, (ctx) => {
   return stakeHandler(ctx as Parameters<typeof stakeHandler>[0]);
 });
 
+const httpServer = startHttpServer(bot);
+
 bot.launch().then(() => {
   console.log(`Bot started [${config.nodeEnv}]`);
 });
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT', () => { void closeRedis(); httpServer.close(); bot.stop('SIGINT'); });
+process.once('SIGTERM', () => { void closeRedis(); httpServer.close(); bot.stop('SIGTERM'); });
