@@ -57,12 +57,28 @@ bot.action(/^stake:\d+$/, (ctx) => {
 
 const httpServer = startHttpServer(bot);
 
-// Clear any existing webhook so polling works cleanly
-bot.telegram.deleteWebhook().then(() =>
-  bot.launch({ dropPendingUpdates: true })
-).then(() => {
+let pollingStarted = false;
+
+async function startBotUpdates(): Promise<void> {
+  if (config.bot.updateMode === 'webhook') {
+    if (!config.bot.webhookUrl) {
+      throw new Error('BOT_WEBHOOK_URL is required when BOT_UPDATE_MODE=webhook');
+    }
+    const webhookUrl = `${config.bot.webhookUrl}/telegram`;
+    await bot.telegram.setWebhook(webhookUrl, { drop_pending_updates: true });
+    console.log(`Bot started [webhook: ${webhookUrl}]`);
+    return;
+  }
+
+  // Polling is intended for local development only. Production should use
+  // webhooks so Telegram does not reject duplicate getUpdates consumers.
+  await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+  await bot.launch({ dropPendingUpdates: true });
+  pollingStarted = true;
   console.log('Bot started [polling]');
-}).catch((err) => {
+}
+
+startBotUpdates().catch((err) => {
   console.error('startup error:', err);
   process.exit(1);
 });
@@ -70,10 +86,12 @@ bot.telegram.deleteWebhook().then(() =>
 function shutdown(signal: string): void {
   void closeRedis();
   httpServer.close();
-  try {
-    bot.stop(signal);
-  } catch {
-    /* bot may not have finished launch during container stop */
+  if (pollingStarted) {
+    try {
+      bot.stop(signal);
+    } catch {
+      /* bot may not have finished launch during container stop */
+    }
   }
 }
 

@@ -59,6 +59,8 @@ Copy `.env.example` to `.env` and fill in:
 |---|---|
 | `BOT_TOKEN` | Telegram bot token from @BotFather |
 | `WEBAPP_URL` | URL of the Mini App that the Play button opens |
+| `BOT_UPDATE_MODE` | `polling` for local dev, `webhook` for Railway/production |
+| `BOT_WEBHOOK_URL` | Public bot service URL used for Telegram webhook, e.g. `https://your-bot.up.railway.app` |
 | `ACCOUNT_MANAGEMENT_URL` | Base URL of the account-management service |
 | `SERVICE_TOKEN` | Service-to-service JWT used for `/wallet/hold` calls |
 | `ENGINE_BASE_URL` | Base URL of the game-engine service |
@@ -85,6 +87,8 @@ docker build -t crypto-hockey-bot .
 docker run \
   -e BOT_TOKEN=<your-bot-token> \
   -e WEBAPP_URL=https://your-frontend.com \
+  -e BOT_UPDATE_MODE=webhook \
+  -e BOT_WEBHOOK_URL=https://your-bot.com \
   -e ACCOUNT_MANAGEMENT_URL=http://account-management:8080 \
   -e SERVICE_TOKEN=change-me \
   -e ENGINE_BASE_URL=http://game-engine:8081 \

@@ -25,10 +25,13 @@ function createHttpClient(): AxiosInstance {
     (error: AxiosError<ApiError>) => {
       const status = error.response?.status ?? 0;
       const body = error.response?.data;
+      const method = error.config?.method?.toUpperCase() ?? 'HTTP';
+      const url = `${error.config?.baseURL ?? ''}${error.config?.url ?? ''}`;
+      const message = body?.message ?? `${error.message}${url ? ` (${method} ${url})` : ''}`;
       throw new AccountApiError(
         status,
-        body?.code ?? 'UNKNOWN',
-        body?.message ?? error.message,
+        body?.code ?? error.code ?? 'NETWORK_ERROR',
+        message,
       );
     },
   );
