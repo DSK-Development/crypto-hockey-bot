@@ -9,6 +9,8 @@ export function parseReferralCode(startPayload: string | undefined): string | nu
 export function buildWebAppUrl(baseUrl: string, referralCode: string | null, matchId?: string): string {
   const url = new URL(baseUrl);
   if (referralCode) url.searchParams.set('ref', referralCode);
-  if (matchId) url.hash = `matchId=${encodeURIComponent(matchId)}`;
+  // matchId goes in the query string: Telegram preserves query params but
+  // overwrites the URL hash with its own launch params (tgWebAppData, ...).
+  if (matchId) url.searchParams.set('matchId', matchId);
   return url.toString();
 }
