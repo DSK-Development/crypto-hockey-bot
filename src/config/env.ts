@@ -15,7 +15,7 @@ export const config = {
     token: requireEnv('BOT_TOKEN'),
     webAppUrl: requireEnv('WEBAPP_URL'),
     serviceToken: requireEnv('BOT_SERVICE_TOKEN'),
-    httpPort: process.env.BOT_HTTP_PORT ?? '3000',
+    httpPort: process.env.PORT ?? process.env.BOT_HTTP_PORT ?? '3000',
   },
   accountManagement: {
     baseUrl: requireEnv('ACCOUNT_MANAGEMENT_URL'),

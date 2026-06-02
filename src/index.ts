@@ -57,9 +57,9 @@ const httpServer = startHttpServer(bot);
 
 const webhookUrl = process.env.WEBHOOK_URL;
 if (webhookUrl) {
-  bot.telegram.setWebhook(webhookUrl).then(() => {
-    console.log(`Bot started [webhook: ${webhookUrl}]`);
-  });
+  bot.telegram.setWebhook(webhookUrl)
+    .then(() => console.log(`Bot started [webhook: ${webhookUrl}]`))
+    .catch((err: unknown) => console.error('setWebhook failed (non-fatal):', err));
 } else {
   bot.launch().then(() => {
     console.log(`Bot started [polling: ${config.nodeEnv}]`);
